@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import * as maplibregl from 'maplibre-gl';
 import type { Point } from 'geojson';
 import type { Place } from '@/lib/places';
@@ -22,6 +23,13 @@ import DirectionsPanel, { type Endpoint } from './DirectionsPanel';
 import DriveHud from './DriveHud';
 import ControlDock from './ControlDock';
 import { DirectionsIcon } from './icons';
+
+// Three.js and the game code load only when someone starts driving.
+const GameMode = dynamic(() => import('./GameMode'), { ssr: false });
+
+// Spawn point for free drive when the map is zoomed out: Norodom Boulevard,
+// heading north from Independence Monument.
+const DRIVE_START = { center: [104.92836, 11.5586] as LngLat, bearing: 0 };
 
 // Served from public/ by scripts/copy-maplibre-worker.mjs; ?v busts the cache on upgrades.
 maplibregl.setWorkerUrl(`/maplibre-gl-worker.mjs?v=${maplibregl.getVersion()}`);
@@ -68,6 +76,7 @@ export default function MapApp() {
   const [drive, setDrive] = useState<DriveProgress | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(10);
+  const [game, setGame] = useState(false);
 
   // Map event handlers read the latest state through refs.
   const stateRef = useRef<MapState>({ theme, exaggeration, terrain, buildings });
@@ -371,6 +380,30 @@ export default function MapApp() {
     }
   }
 
+  // --- Free drive (game) ---
+
+  function enterGame() {
+    const map = mapRef.current;
+    if (!map) return;
+    stopOrbit();
+    setSelectedBuilding(map, null);
+    setMarker('place', '', null);
+    setPlace(null);
+    if (view === 'place') setView('explore');
+    // Driving needs building tiles around the car, so start in a city at street level.
+    if (map.getZoom() < 15.5) {
+      map.flyTo({ ...DRIVE_START, zoom: 18.4, pitch: 68, duration: 2600, essential: true });
+      map.once('moveend', () => setGame(true));
+    } else {
+      setGame(true);
+    }
+  }
+
+  function exitGame() {
+    setGame(false);
+    mapRef.current?.easeTo({ pitch: 60, zoom: 16.5, duration: 900 });
+  }
+
   // --- Camera moves ---
 
   function goTo(p: Place) {
@@ -405,14 +438,14 @@ export default function MapApp() {
   }
 
   const route = routes[selected];
-  const mode = drive ? 'drive' : view;
+  const mode = game ? 'game' : drive ? 'drive' : view;
 
   return (
     <div className="app" data-mode={mode}>
       <div id="map" ref={containerRef} />
       <div className="halo" aria-hidden="true" />
 
-      {!drive && (
+      {!drive && !game && (
         <>
           {view !== 'directions' && (
             <header className="topbar">
@@ -438,7 +471,7 @@ export default function MapApp() {
               <span />
             </button>
             <div className="sheet-body">
-              {view === 'explore' && <ExplorePanel onGo={goTo} />}
+              {view === 'explore' && <ExplorePanel onGo={goTo} onDrive={enterGame} />}
               {view === 'place' && place && (
                 <PlaceCard place={place} onClose={closePlace} onDirections={openDirections} onOrbit={() => orbit(place.center)} />
               )}
@@ -471,6 +504,7 @@ export default function MapApp() {
               setIs3D(next > 0);
             }}
             onLocate={() => geolocateRef.current?.trigger()}
+            onPlay={enterGame}
             onBuildings={setBuildings}
             onTerrain={setTerrain}
             onExaggeration={setExaggeration}
@@ -484,6 +518,8 @@ export default function MapApp() {
           onToggle={toggleDrive} onSpeed={changeSpeed} onExit={exitDrive}
         />
       )}
+
+      {game && mapRef.current && <GameMode map={mapRef.current} onExit={exitGame} />}
 
       {mapError && <div className="toast glass" role="alert">{mapError}</div>}
     </div>
