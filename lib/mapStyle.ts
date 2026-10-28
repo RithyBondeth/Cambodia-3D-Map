@@ -41,6 +41,32 @@ function roadColor(id: string, p: Palette): string | undefined {
   return major ? p.roadMajor : p.road;
 }
 
+// Liberty draws streets far thinner than they are (a minor road is ~1.3 m wide at
+// zoom 20), which looks wrong next to the free-drive car. Past zoom 20, widen
+// each road class towards its real width in metres.
+const METRES_PER_PX_Z22 = 0.0183; // at Cambodia's latitude, 512 px tiles
+
+function roadMetres(id: string): number | undefined {
+  if (id.includes('rail')) return undefined;
+  const base =
+    id.includes('motorway') ? 16 :
+    id.includes('trunk_primary') ? 14 :
+    id.includes('secondary_tertiary') ? 11 :
+    id.includes('service_track') ? 5 :
+    id.includes('path_pedestrian') ? 3 :
+    8; // minor, street, link
+  return id.includes('casing') ? base + 1.6 : base;
+}
+
+function extendRoadWidth(id: string, paint: Record<string, unknown>) {
+  const metres = roadMetres(id);
+  const w = paint['line-width'];
+  if (!metres || !Array.isArray(w) || w[0] !== 'interpolate' || !Array.isArray(w[2]) || w[2][0] !== 'zoom') return;
+  const lastZoom = w[w.length - 2];
+  if (typeof lastZoom !== 'number' || lastZoom >= 22) return;
+  paint['line-width'] = [...w, 22, metres / METRES_PER_PX_Z22];
+}
+
 function recolor(style: StyleSpecification, p: Palette): StyleSpecification {
   const layers: LayerSpecification[] = [];
 
@@ -74,6 +100,7 @@ function recolor(style: StyleSpecification, p: Palette): StyleSpecification {
         else {
           const c = roadColor(id, p);
           if (c) paint['line-color'] = c;
+          if (/^(road|tunnel|bridge)_/.test(id)) extendRoadWidth(id, paint);
         }
         break;
       }

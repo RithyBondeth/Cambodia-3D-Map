@@ -20,6 +20,10 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
   - Look: holographic light, with a dusk variant.
   - Routing: the OSRM public demo server; search uses Photon. Both are free and keyless.
   - Google Places data can't be used here: Google's terms don't allow showing it on a non-Google map, so place detail comes from OpenStreetMap.
+- **Free drive (28 Oct 2026).**
+  - You drive a low-poly sports car, built in code with Three.js, rather than a tuk-tuk or a fly-around drone.
+  - Physics is arcade-style. Buildings are solid, using OSM footprints from the loaded vector tiles.
+  - Road widths were raised to real metres at close zoom so streets aren't narrower than the car.
 - **Terrain needs exaggeration.** Highest peak (Phnom Aural) is ~1,800 m and the central plain is near sea level, so a 5–20× option is useful for country views.
 
 ## Known limits
@@ -33,6 +37,8 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
 - [ ] Verify / fix heights of major Phnom Penh towers
 - [x] Glowing route line, animated car (3D drive)
 - [ ] 3D trees
+- [ ] Free drive: missions, checkpoint races, collectibles
+- [ ] Free drive: traffic / pedestrians, day-night headlights
 - [ ] Live GPS turn-by-turn navigation (the 3D drive is a playback preview)
 - [ ] Move routing off the OSRM demo server before launch
 - [ ] Province boundaries and names (EN + Khmer)

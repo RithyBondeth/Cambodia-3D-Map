@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { PLACES, type Place, type PlaceKind } from '@/lib/places';
-import { CityIcon, GlobeIcon, MountainIcon, TempleIcon, TowerIcon } from './icons';
+import { CityIcon, GamepadIcon, GlobeIcon, MountainIcon, TempleIcon, TowerIcon } from './icons';
 
 const ICONS: Record<PlaceKind, ReactNode> = {
   country: <GlobeIcon />,
@@ -12,13 +12,21 @@ const ICONS: Record<PlaceKind, ReactNode> = {
   nature: <MountainIcon />,
 };
 
-export default function ExplorePanel({ onGo }: { onGo: (p: Place) => void }) {
+export default function ExplorePanel({ onGo, onDrive }: { onGo: (p: Place) => void; onDrive: () => void }) {
   return (
     <div className="explore">
       <div className="section-head">
         <span className="eyebrow">Explore</span>
         <h2>Cambodia in 3D</h2>
       </div>
+      <button className="drive-hero" onClick={onDrive}>
+        <span className="drive-hero-icon"><GamepadIcon width={26} height={26} /></span>
+        <span className="drive-hero-text">
+          <b>Free drive</b>
+          <span>Take a sports car through the city</span>
+        </span>
+        <span className="drive-hero-cta">Play</span>
+      </button>
       <div className="place-grid">
         {PLACES.map((p) => (
           <button key={p.id} className={`place-tile kind-${p.kind}`} onClick={() => onGo(p)}>
