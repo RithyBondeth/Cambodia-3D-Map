@@ -15,6 +15,11 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
   3. Photorealistic: Google Photorealistic 3D Tiles (paid API key; Cambodia coverage unconfirmed, check in Google Earth) or drone photogrammetry for specific landmarks
 - **Next.js + TypeScript (28 Oct 2026).** Moved off the CDN + plain-JS setup to Next.js 16 (App Router), React 19 and TypeScript, with MapLibre installed from npm. Chosen to leave room for indexable place pages, server-side features (e.g. storing corrected building heights) and accounts. The map itself is a client-only component.
 - **MapLibre v6.** Upgraded from 5.x during the move because npm audit flagged a critical XSS advisory (GHSA-jrc7-96c5-q579) for every release up to 6.4.0.
+- **Holographic redesign + directions (28 Oct 2026).**
+  - Buildings: stylised OSM rather than Google Photorealistic 3D Tiles, which need a paid key and have unconfirmed Cambodia coverage.
+  - Look: holographic light, with a dusk variant.
+  - Routing: the OSRM public demo server; search uses Photon. Both are free and keyless.
+  - Google Places data can't be used here: Google's terms don't allow showing it on a non-Google map, so place detail comes from OpenStreetMap.
 - **Terrain needs exaggeration.** Highest peak (Phnom Aural) is ~1,800 m and the central plain is near sea level, so a 5–20× option is useful for country views.
 
 ## Known limits
@@ -26,8 +31,12 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
 ## Roadmap
 
 - [ ] Verify / fix heights of major Phnom Penh towers
-- [ ] Night "navigation" theme: glowing route line, animated car, 3D trees
+- [x] Glowing route line, animated car (3D drive)
+- [ ] 3D trees
+- [ ] Live GPS turn-by-turn navigation (the 3D drive is a playback preview)
+- [ ] Move routing off the OSRM demo server before launch
 - [ ] Province boundaries and names (EN + Khmer)
 - [ ] Khmer labels (self-hosted glyphs with Noto Sans Khmer)
-- [ ] Detailed landmark models (Royal Palace, Angkor Wat)
+- [x] Landmark models: Independence Monument, Angkor Wat
+- [ ] More landmarks: Royal Palace, Wat Phnom, Bayon
 - [ ] Deploy (e.g. Cloudflare Pages / Vercel) and test on mid-range Android
