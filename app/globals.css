@@ -53,7 +53,6 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 }
 .info small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .info .close { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: var(--muted); font-size: 20px; cursor: pointer; }
-.hidden { display: none; }
 
 /* Phone: panel becomes a bottom sheet */
 @media (max-width: 720px) {

@@ -5,11 +5,14 @@ An interactive, mobile-friendly 3D web map of Cambodia: real terrain for the who
 ## Run it
 
 ```bash
-npm start
-# open http://localhost:5173
+npm install
+npm run dev
+# open http://localhost:3000
 ```
 
-No install step: MapLibre GL loads from a CDN and map data streams from free, keyless tile servers. You need an internet connection.
+Production: `npm run build && npm start`. Type-check: `npm run typecheck`.
+
+Map data streams from free, keyless tile servers, so you need an internet connection.
 
 ## What's in v0.1
 
@@ -26,15 +29,21 @@ No install step: MapLibre GL loads from a CDN and map data streams from free, ke
 |---|---|---|
 | Map + buildings | [OpenFreeMap](https://openfreemap.org) (OpenStreetMap, OpenMapTiles schema) | Free, no API key. Buildings without a height get a default estimate |
 | Elevation | AWS Terrain Tiles (Terrarium) | ~30 m in Cambodia |
-| Map engine | [MapLibre GL JS](https://maplibre.org) v5 | Same styles work later in MapLibre Android/iOS SDKs |
+| Map engine | [MapLibre GL JS](https://maplibre.org) v6 (pinned in package.json) | Same styles work later in MapLibre Android/iOS SDKs |
+| App framework | [Next.js](https://nextjs.org) 16 (App Router) + React 19 + TypeScript | The map renders client-side only |
 
 ## Project layout
 
 ```
-index.html        page + panel markup
-src/main.js       map setup, terrain, buildings, UI wiring
-src/places.js     camera presets (edit to add places)
-src/style.css     panel styling, phone bottom sheet
-serve.mjs         tiny local server (no dependencies)
-docs/PROJECT_NOTES.md   decisions and roadmap
+app/layout.tsx            page shell, metadata, global CSS
+app/page.tsx              home route → map
+app/globals.css           panel styling, phone bottom sheet
+components/MapLoader.tsx  loads the map in the browser only (ssr: false)
+components/MapApp.tsx     map setup, panel UI, building popup
+lib/mapLayers.ts          tile styles, terrain, 3D buildings, sky, themes
+lib/places.ts             camera presets (edit to add places)
+scripts/copy-maplibre-worker.mjs  copies MapLibre's web worker into public/
+docs/PROJECT_NOTES.md     decisions and roadmap
 ```
+
+**MapLibre worker:** v6 loads its web worker from a separate file, which the Next.js bundler doesn't ship. An npm hook copies it to `public/maplibre-gl-worker.mjs` (gitignored) on install, dev and build, and `MapApp.tsx` points MapLibre at it with `setWorkerUrl()`.

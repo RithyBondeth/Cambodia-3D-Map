@@ -1,6 +1,16 @@
 // Camera presets. Coordinates are approximate and good enough for fly-to;
 // refine them as the project grows.
-export const PLACES = [
+export type Place = {
+  id: string;
+  name: string;
+  center: [number, number];
+  zoom: number;
+  pitch: number;
+  bearing: number;
+  exaggeration?: number;
+};
+
+export const PLACES: Place[] = [
   { id: 'cambodia',  name: 'All Cambodia',         center: [104.90, 12.60], zoom: 6.4,  pitch: 45, bearing: 0 },
   { id: 'pp',        name: 'Phnom Penh',           center: [104.922, 11.565], zoom: 14.6, pitch: 62, bearing: -20 },
   { id: 'palace',    name: 'Royal Palace',         center: [104.9310, 11.5637], zoom: 17,  pitch: 65, bearing: 30 },
