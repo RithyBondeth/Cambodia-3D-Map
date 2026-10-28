@@ -1,0 +1,10 @@
+{
+  "name": "cambodia-3d-map",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive 3D map of Cambodia: terrain and 3D buildings in the browser.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs"
+  }
+}
