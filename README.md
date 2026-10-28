@@ -24,6 +24,10 @@ Map data streams from free, keyless tile servers, so you need an internet connec
 - **Place details**: tap POIs, buildings or landmarks. Right-click or long-press to drop a pin. *Orbit in 3D* circles the camera around a place
 - **Driving directions** with alternative routes and turn-by-turn steps
 - **3D drive**: plays the route back with a chase camera, next-turn banner, ETA and 5×/10×/30× speed. This is a preview, not live GPS navigation
+- **Free drive (game)**: drive a low-poly sports car through the 3D city yourself.
+  - Keyboard: <kbd>W</kbd>/<kbd>↑</kbd> drive, <kbd>S</kbd>/<kbd>↓</kbd> brake or reverse, <kbd>A</kbd>/<kbd>D</kbd> steer, <kbd>Shift</kbd> boost, <kbd>Space</kbd> drift, <kbd>R</kbd> reset, <kbd>M</kbd> mute, <kbd>Esc</kbd> exit.
+  - Phones: an on-screen joystick plus Boost and Drift buttons.
+  - Buildings are solid. The HUD shows a speedometer, boost meter, the street you're on, top speed, distance and crashes, with a synthesised engine sound.
 
 ## Data sources
 
@@ -34,6 +38,7 @@ Map data streams from free, keyless tile servers, so you need an internet connec
 | Search | [Photon](https://photon.komoot.io) (OpenStreetMap) | Free public API, fair use |
 | Routing | [OSRM](https://project-osrm.org) public demo server | Free, rate-limited, **not for production**. Set `NEXT_PUBLIC_OSRM_URL` to a hosted/self-run OSRM before launch |
 | Map engine | [MapLibre GL JS](https://maplibre.org) v6 (pinned in package.json) | Same styles work later in MapLibre Android/iOS SDKs |
+| 3D car | [Three.js](https://threejs.org), rendered as a MapLibre custom layer | Loaded only when free drive starts |
 | App framework | [Next.js](https://nextjs.org) 16 (App Router) + React 19 + TypeScript | The map renders client-side only |
 
 ## Project layout
@@ -55,6 +60,9 @@ lib/routing.ts            OSRM client + turn instructions
 lib/search.ts             Photon client
 lib/drive.ts              3D drive camera animation
 lib/geo.ts, lib/format.ts geometry and formatting helpers
+lib/game/                 free drive: vehicle physics, collisions + street lookup (world),
+                          Three.js car model and map layer, controls, engine audio, game loop
+components/GameMode.tsx   free-drive HUD, joystick, touch buttons (Three.js loads only here)
 lib/places.ts             Explore presets (edit to add places)
 scripts/copy-maplibre-worker.mjs  copies MapLibre's web worker into public/
 docs/PROJECT_NOTES.md     decisions and roadmap

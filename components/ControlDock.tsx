@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Theme } from '@/lib/theme';
-import { CubeIcon, LayersIcon, LocateIcon, MinusIcon, MoonIcon, PlusIcon, SunIcon } from './icons';
+import { CubeIcon, GamepadIcon, LayersIcon, LocateIcon, MinusIcon, MoonIcon, PlusIcon, SunIcon } from './icons';
 
 type Props = {
   theme: Theme;
@@ -16,6 +16,7 @@ type Props = {
   onNorth: () => void;
   on3D: () => void;
   onLocate: () => void;
+  onPlay: () => void;
   onBuildings: (v: boolean) => void;
   onTerrain: (v: boolean) => void;
   onExaggeration: (v: number) => void;
@@ -41,6 +42,10 @@ export default function ControlDock(p: Props) {
           {p.is3D ? '3D' : '2D'}
         </button>
         <button className="icon-btn" aria-label="Show my location" onClick={p.onLocate}><LocateIcon /></button>
+      </div>
+
+      <div className="dock-group glass">
+        <button className="icon-btn holo" aria-label="Free drive" title="Free drive" onClick={p.onPlay}><GamepadIcon /></button>
       </div>
 
       <div className="dock-group glass">
