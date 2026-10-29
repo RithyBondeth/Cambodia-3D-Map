@@ -66,6 +66,8 @@ export function ManeuverIcon({ type, modifier, ...p }: P & { type: string; modif
   );
 }
 
+export const SatelliteIcon = (p: P) => <Svg {...p}><path d="m13.5 6.5 4 4-7 7-4-4z" /><path d="m4.5 9.5 3-3 2 2-3 3zM14.5 19.5l3-3 2 2-3 3z" /><path d="M14.6 14.6a4 4 0 0 0-5.2-5.2" opacity=".5" /><path d="M19 9.5a7 7 0 0 0-4.5-4.5" /></Svg>;
+export const MapIcon = (p: P) => <Svg {...p}><path d="m3.5 6.5 5.5-2.5 6 2.5 5.5-2.5v13.5L15 20l-6-2.5L3.5 20z" /><path d="M9 4v13.5M15 6.5V20" /></Svg>;
 export const SoundIcon = (p: P) => <Svg {...p}><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /></Svg>;
 export const MuteIcon = (p: P) => <Svg {...p}><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="m16 9.5 5 5M21 9.5l-5 5" /></Svg>;
 export const NavigateIcon = (p: P) => <Svg {...p}><path d="M12 2.8 19.6 20.6 12 16.6 4.4 20.6z" fill="currentColor" fillOpacity=".18" /></Svg>;

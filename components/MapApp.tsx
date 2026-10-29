@@ -5,13 +5,14 @@ import dynamic from 'next/dynamic';
 import * as maplibregl from 'maplibre-gl';
 import type { Point } from 'geojson';
 import type { Place } from '@/lib/places';
-import type { Theme } from '@/lib/theme';
+import type { Basemap, Theme } from '@/lib/theme';
 import type { LngLat } from '@/lib/geo';
 import { loadStyle } from '@/lib/mapStyle';
 import {
-  BUILDINGS_LAYER, POI_LAYERS, ROUTE_ALT_LAYER, applyTerrain, decorate, setBuildingsVisible,
-  setRoutes, setSelectedBuilding, type MapState,
+  BUILDING_HIT_LAYERS, POI_LAYERS, ROUTE_ALT_LAYER, applyTerrain, decorate, setBuildingsVisible,
+  setBuildingParts, setRoutes, setSelectedBuilding, type MapState,
 } from '@/lib/mapLayers';
+import { BuildingParts } from '@/lib/buildingParts';
 import { LANDMARK_INFO } from '@/lib/landmarks';
 import { fetchRoutes, type Route } from '@/lib/routing';
 import { prettyCategory, type SearchResult } from '@/lib/search';
@@ -59,6 +60,7 @@ export default function MapApp() {
   const myLocation = useRef<Endpoint | null>(null);
 
   const [theme, setTheme] = useState<Theme>('day');
+  const [basemap, setBasemap] = useState<Basemap>('map');
   const [exaggeration, setExaggeration] = useState(1.5);
   const [terrain, setTerrain] = useState(true);
   const [buildings, setBuildings] = useState(true);
@@ -80,8 +82,8 @@ export default function MapApp() {
   const [nav, setNav] = useState<{ preview: boolean } | null>(null);
 
   // Map event handlers read the latest state through refs.
-  const stateRef = useRef<MapState>({ theme, exaggeration, terrain, buildings });
-  stateRef.current = { theme, exaggeration, terrain, buildings };
+  const stateRef = useRef<MapState>({ theme, basemap, exaggeration, terrain, buildings });
+  stateRef.current = { theme, basemap, exaggeration, terrain, buildings };
   const viewRef = useRef(view);
   viewRef.current = view;
   const navRef = useRef(nav);
@@ -133,7 +135,7 @@ export default function MapApp() {
     let cancelled = false;
     let map: maplibregl.Map | undefined;
 
-    loadStyle(stateRef.current.theme).then((style) => {
+    loadStyle(stateRef.current.theme, stateRef.current.basemap).then((style) => {
       if (cancelled) return;
       map = new maplibregl.Map({
         container: containerRef.current!,
@@ -160,6 +162,10 @@ export default function MapApp() {
 
       const m = map;
       m.on('style.load', () => decorate(m, stateRef.current));
+      // Split merged tile buildings into single buildings around the camera.
+      const parts = new BuildingParts(m, (fc, ready) => setBuildingParts(m, fc, ready));
+      m.on('moveend', parts.update);
+      m.on('sourcedata', (e) => e.sourceId === 'openmaptiles' && parts.update());
       m.on('error', (e) => console.warn('Map error:', e.error?.message));
       // The navigation camera turns every frame; the compass is hidden then anyway.
       m.on('rotate', () => !navRef.current && setBearing(m.getBearing()));
@@ -168,7 +174,7 @@ export default function MapApp() {
 
       m.on('click', (e) => {
         if (navRef.current) return;
-        const layers = [ROUTE_ALT_LAYER, ...POI_LAYERS, 'kh-landmarks', BUILDINGS_LAYER].filter((id) => m.getLayer(id));
+        const layers = [ROUTE_ALT_LAYER, ...POI_LAYERS, 'kh-landmarks', ...BUILDING_HIT_LAYERS].filter((id) => m.getLayer(id));
         const f = m.queryRenderedFeatures(e.point, { layers })[0];
         if (!f) {
           if (viewRef.current === 'place') closePlace();
@@ -223,7 +229,7 @@ export default function MapApp() {
         showPlace({ kind: 'pin', title: 'Dropped pin', center: [e.lngLat.lng, e.lngLat.lat] });
       });
 
-      for (const layer of [BUILDINGS_LAYER, 'kh-landmarks', ROUTE_ALT_LAYER, ...POI_LAYERS]) {
+      for (const layer of [...BUILDING_HIT_LAYERS, 'kh-landmarks', ROUTE_ALT_LAYER, ...POI_LAYERS]) {
         m.on('mouseenter', layer, () => (m.getCanvas().style.cursor = 'pointer'));
         m.on('mouseleave', layer, () => (m.getCanvas().style.cursor = ''));
       }
@@ -238,13 +244,13 @@ export default function MapApp() {
   }, [closePlace, showPlace, stopOrbit]);
 
   // --- Theme: rebuild the recoloured style; decorate() re-runs on style.load ---
-  const loadedTheme = useRef<Theme>(theme);
+  const loadedLook = useRef(`${theme}/${basemap}`);
   useEffect(() => {
     document.body.dataset.theme = theme;
-    if (loadedTheme.current === theme) return;
-    loadedTheme.current = theme;
-    loadStyle(theme).then((s) => mapRef.current?.setStyle(s, { diff: false })).catch((e: Error) => setMapError(e.message));
-  }, [theme]);
+    if (loadedLook.current === `${theme}/${basemap}`) return;
+    loadedLook.current = `${theme}/${basemap}`;
+    loadStyle(theme, basemap).then((s) => mapRef.current?.setStyle(s, { diff: false })).catch((e: Error) => setMapError(e.message));
+  }, [theme, basemap]);
 
   useEffect(() => {
     if (mapRef.current) setBuildingsVisible(mapRef.current, buildings);
@@ -445,9 +451,10 @@ export default function MapApp() {
           </aside>
 
           <ControlDock
-            theme={theme} bearing={bearing} is3D={is3D}
+            theme={theme} basemap={basemap} bearing={bearing} is3D={is3D}
             buildings={buildings} terrain={terrain} exaggeration={exaggeration}
             onTheme={setTheme}
+            onBasemap={setBasemap}
             onZoom={(d) => (d > 0 ? mapRef.current?.zoomIn() : mapRef.current?.zoomOut())}
             onNorth={() => mapRef.current?.easeTo({ bearing: 0, duration: 600 })}
             on3D={() => {
