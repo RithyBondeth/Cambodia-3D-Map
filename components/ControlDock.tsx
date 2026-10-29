@@ -1,17 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import type { Theme } from '@/lib/theme';
-import { CubeIcon, LayersIcon, LocateIcon, MinusIcon, MoonIcon, PlusIcon, SunIcon } from './icons';
+import type { Basemap, Theme } from '@/lib/theme';
+import { CubeIcon, LayersIcon, MapIcon, SatelliteIcon, LocateIcon, MinusIcon, MoonIcon, PlusIcon, SunIcon } from './icons';
 
 type Props = {
   theme: Theme;
+  basemap: Basemap;
   bearing: number;
   is3D: boolean;
   buildings: boolean;
   terrain: boolean;
   exaggeration: number;
   onTheme: (t: Theme) => void;
+  onBasemap: (b: Basemap) => void;
   onZoom: (dir: 1 | -1) => void;
   onNorth: () => void;
   on3D: () => void;
@@ -44,6 +46,14 @@ export default function ControlDock(p: Props) {
       </div>
 
       <div className="dock-group glass">
+        <button
+          className={`icon-btn ${p.basemap === 'satellite' ? 'on' : ''}`}
+          aria-label={p.basemap === 'satellite' ? 'Switch to map view' : 'Switch to satellite view'}
+          title={p.basemap === 'satellite' ? 'Map view' : 'Satellite view'}
+          onClick={() => p.onBasemap(p.basemap === 'satellite' ? 'map' : 'satellite')}
+        >
+          {p.basemap === 'satellite' ? <MapIcon /> : <SatelliteIcon />}
+        </button>
         <button className="icon-btn" aria-label={p.theme === 'day' ? 'Switch to dusk' : 'Switch to day'} onClick={() => p.onTheme(p.theme === 'day' ? 'dusk' : 'day')}>
           {p.theme === 'day' ? <MoonIcon /> : <SunIcon />}
         </button>
@@ -55,6 +65,10 @@ export default function ControlDock(p: Props) {
       {layersOpen && (
         <div className="layers glass">
           <span className="eyebrow">Layers</span>
+          <div className="seg wide" role="group" aria-label="Map type">
+            <button className={p.basemap === 'map' ? 'active' : ''} onClick={() => p.onBasemap('map')}>Map</button>
+            <button className={p.basemap === 'satellite' ? 'active' : ''} onClick={() => p.onBasemap('satellite')}>Satellite</button>
+          </div>
           <label className="switch">
             <span><CubeIcon width={16} height={16} /> 3D buildings</span>
             <input type="checkbox" checked={p.buildings} onChange={(e) => p.onBuildings(e.target.checked)} />

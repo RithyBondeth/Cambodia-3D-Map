@@ -1,11 +1,13 @@
 import type { Map as MapLibreMap, GeoJSONSource, ExpressionSpecification } from 'maplibre-gl';
 import type { Feature, FeatureCollection, Geometry, LineString } from 'geojson';
-import { PALETTES, type Theme } from './theme';
+import { PALETTES, type Basemap, type Theme } from './theme';
+import { FACADE, TOWER, addFacadeImages } from './buildingTextures';
 import { LANDMARKS, LANDMARK_CLEARINGS } from './landmarks';
 import { bearing, type LngLat } from './geo';
 
 export type MapState = {
   theme: Theme;
+  basemap: Basemap;
   exaggeration: number;
   terrain: boolean;
   buildings: boolean;
@@ -15,10 +17,21 @@ export type MapState = {
 const DEM_TILES = ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'];
 
 export const BUILDINGS_LAYER = 'kh-buildings';
+const BUILDINGS_DETAIL_LAYER = 'kh-buildings-detail';
+const ROOFS_LAYER = 'kh-roofs';
+const ROOFS_DETAIL_LAYER = 'kh-roofs-detail';
+// Both building layers answer clicks: the plain one when zoomed out, the textured one up close.
+export const BUILDING_HIT_LAYERS = [BUILDINGS_LAYER, BUILDINGS_DETAIL_LAYER];
+// Close up, buildings come from our own per-building split (see buildingParts.ts).
+const DETAIL_ZOOM = 16;
 export const ROUTE_ALT_LAYER = 'route-alt';
 export const POI_LAYERS = ['poi_r20', 'poi_r7', 'poi_r1', 'poi_transit'];
 
-const BUILDING_LAYERS = [BUILDINGS_LAYER, 'kh-roofs', 'kh-landmarks'];
+const BUILDING_LAYERS = [BUILDINGS_LAYER, BUILDINGS_DETAIL_LAYER, ROOFS_LAYER, ROOFS_DETAIL_LAYER, 'kh-landmarks'];
+const DETAIL_LAYERS = [BUILDINGS_DETAIL_LAYER, ROOFS_DETAIL_LAYER];
+const PLAIN_LAYERS = [BUILDINGS_LAYER, ROOFS_LAYER];
+let buildingsOn = true;
+let detailReady = false;
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
@@ -28,6 +41,7 @@ const data: Record<string, FeatureCollection> = {
   'route-traveled': EMPTY,
   'nav-arrow': EMPTY,
   'nav-arrow-head': EMPTY,
+  'kh-building-parts': EMPTY,
   selected: EMPTY,
 };
 
@@ -41,6 +55,19 @@ const minHeight: ExpressionSpecification = ['coalesce', ['get', 'render_min_heig
 // Buildings rise out of the ground between zoom 13 and 14.5.
 const grow = (h: ExpressionSpecification | number): ExpressionSpecification =>
   ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, h];
+
+// Taller than this, a building is drawn as a glass tower.
+const TOWER_HEIGHT = 30;
+const isTower: ExpressionSpecification = ['>=', height, TOWER_HEIGHT];
+// A stable look per building. The split buildings carry a random `v`. The raw
+// tiles merge every building of one height into one feature, so there only
+// height can tell neighbours apart.
+type Variant = (n: number) => ExpressionSpecification;
+const byHeight: Variant = (n) => ['%', ['floor', ['+', ['*', height, 2.3], ['*', minHeight, 1.7]]], n];
+const byPart: Variant = (n) => ['%', ['get', 'v'], n];
+const pick = (colors: string[], variant: Variant): ExpressionSpecification =>
+  ['match', variant(colors.length), ...colors.slice(0, -1).flatMap((c, i) => [i, c]), colors[colors.length - 1]] as ExpressionSpecification;
+const texture = (prefix: string, n: number, variant: Variant): ExpressionSpecification => ['concat', prefix, ['to-string', variant(n)]];
 
 function firstSymbolLayerId(map: MapLibreMap) {
   return map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
@@ -98,7 +125,8 @@ export function decorate(map: MapLibreMap, state: MapState) {
   if (!map.getSource('dem-hs')) {
     map.addSource('dem-hs', { type: 'raster-dem', tiles: DEM_TILES, encoding: 'terrarium', tileSize: 256, maxzoom: 15 });
   }
-  map.addLayer({
+  // Aerial photos already carry their own light and shadow.
+  if (state.basemap === 'map') map.addLayer({
     id: 'hillshade', type: 'hillshade', source: 'dem-hs', maxzoom: 14,
     paint: {
       'hillshade-shadow-color': p.hillshade,
@@ -164,38 +192,72 @@ export function decorate(map: MapLibreMap, state: MapState) {
     },
   }, beforeLabels);
 
-  // --- 3D buildings: real OSM footprints, holographic height gradient, bright roof caps ---
-  const visibility = state.buildings ? 'visible' : 'none';
+  // --- 3D buildings: real OSM footprints, each with its own wall and roof colour ---
+  // Zoomed out: plain walls. Up close: textured facades with windows (lit at night),
+  // glass curtain walls on towers, and tiled, concrete or metal roofs.
+  addFacadeImages(map, p);
+  addGeoJSON(map, 'kh-building-parts');
+  const visibility = (on: boolean) => (state.buildings && on ? 'visible' : 'none');
+  const roofHeight: ExpressionSpecification = ['+', height, ['interpolate', ['linear'], height, 0, 0.4, 100, 1.5]];
   map.addLayer({
     id: BUILDINGS_LAYER,
     type: 'fill-extrusion',
     source: 'openmaptiles',
     'source-layer': 'building',
     minzoom: 13,
+    maxzoom: detailReady ? DETAIL_ZOOM : 24,
     filter: outsideLandmarks,
-    layout: { visibility },
+    layout: { visibility: visibility(true) },
     paint: {
-      'fill-extrusion-color': ['interpolate', ['linear'], height, 0, p.building[0], 18, p.building[1], 60, p.building[2], 150, p.building[3]],
+      'fill-extrusion-color': ['case', isTower, pick(p.towers, byHeight), pick(p.facades, byHeight)],
       'fill-extrusion-height': grow(height),
       'fill-extrusion-base': grow(minHeight),
-      'fill-extrusion-opacity': state.theme === 'day' ? 0.96 : 0.92,
       'fill-extrusion-vertical-gradient': true,
     },
   }, beforeLabels);
-  // A thin slab on top of each building catches the light like a glass roof edge.
   map.addLayer({
-    id: 'kh-roofs',
+    id: BUILDINGS_DETAIL_LAYER,
+    type: 'fill-extrusion',
+    source: 'kh-building-parts',
+    minzoom: DETAIL_ZOOM,
+    filter: outsideLandmarks,
+    layout: { visibility: visibility(detailReady) },
+    paint: {
+      'fill-extrusion-pattern': ['case', isTower, texture(TOWER, p.towers.length, byPart), texture(FACADE, p.facades.length, byPart)],
+      'fill-extrusion-height': height,
+      'fill-extrusion-base': minHeight,
+      'fill-extrusion-vertical-gradient': true,
+    },
+  }, beforeLabels);
+  // Roofs: a slab on top of each building in its own colour (the textures would
+  // otherwise tile windows across the roof too).
+  map.addLayer({
+    id: ROOFS_LAYER,
     type: 'fill-extrusion',
     source: 'openmaptiles',
     'source-layer': 'building',
     minzoom: 15,
+    maxzoom: detailReady ? DETAIL_ZOOM : 24,
     filter: outsideLandmarks,
-    layout: { visibility },
+    layout: { visibility: visibility(true) },
     paint: {
-      'fill-extrusion-color': ['interpolate', ['linear'], height, 10, p.roof, 80, p.roofTall],
+      'fill-extrusion-color': ['case', isTower, p.roofs[2], pick(p.roofs, byHeight)],
       'fill-extrusion-base': height,
-      'fill-extrusion-height': ['+', height, ['interpolate', ['linear'], height, 0, 0.4, 100, 1.5]],
+      'fill-extrusion-height': roofHeight,
       'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 1],
+    },
+  }, beforeLabels);
+  map.addLayer({
+    id: ROOFS_DETAIL_LAYER,
+    type: 'fill-extrusion',
+    source: 'kh-building-parts',
+    minzoom: DETAIL_ZOOM,
+    filter: outsideLandmarks,
+    layout: { visibility: visibility(detailReady) },
+    paint: {
+      'fill-extrusion-color': ['case', isTower, p.roofs[2], pick(p.roofs, byPart)],
+      'fill-extrusion-base': height,
+      'fill-extrusion-height': roofHeight,
     },
   }, beforeLabels);
 
@@ -205,7 +267,7 @@ export function decorate(map: MapLibreMap, state: MapState) {
     type: 'fill-extrusion',
     source: 'landmarks',
     minzoom: 13,
-    layout: { visibility },
+    layout: { visibility: visibility(true) },
     paint: {
       'fill-extrusion-color': ['match', ['get', 'tone'], 1, p.landmark[1], p.landmark[0]],
       'fill-extrusion-height': grow(['get', 'height']),
@@ -229,7 +291,7 @@ export function decorate(map: MapLibreMap, state: MapState) {
 
   applyTerrain(map, state);
 
-  map.setLight({ anchor: 'map', position: [1.4, 215, 40], color: p.light, intensity: state.theme === 'day' ? 0.32 : 0.45 });
+  map.setLight({ anchor: 'map', position: [1.4, 215, 40], color: p.light, intensity: state.theme === 'day' ? 0.24 : 0.4 });
   map.setSky({
     'sky-color': p.sky,
     'horizon-color': p.horizon,
@@ -246,9 +308,21 @@ export function applyTerrain(map: MapLibreMap, state: MapState) {
 }
 
 export function setBuildingsVisible(map: MapLibreMap, visible: boolean) {
+  buildingsOn = visible;
   for (const id of BUILDING_LAYERS) {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    const on = visible && (!DETAIL_LAYERS.includes(id) || detailReady);
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   }
+}
+
+// Per-building split for close zooms. Until the tile under the camera is split
+// (`ready`), the plain tile buildings keep showing at every zoom instead.
+export function setBuildingParts(map: MapLibreMap, fc: FeatureCollection, ready: boolean) {
+  setData(map, 'kh-building-parts', fc);
+  if (ready === detailReady) return;
+  detailReady = ready;
+  for (const id of PLAIN_LAYERS) if (map.getLayer(id)) map.setLayerZoomRange(id, id === ROOFS_LAYER ? 15 : 13, ready ? DETAIL_ZOOM : 24);
+  for (const id of DETAIL_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', ready && buildingsOn ? 'visible' : 'none');
 }
 
 function setData(map: MapLibreMap, id: string, fc: FeatureCollection) {
