@@ -66,8 +66,8 @@ export function ManeuverIcon({ type, modifier, ...p }: P & { type: string; modif
   );
 }
 
-export const GamepadIcon = (p: P) => <Svg {...p}><path d="M7 8h10a4.5 4.5 0 0 1 4.4 5.5l-.8 3.6a2.4 2.4 0 0 1-4.2 1L14.6 16H9.4l-1.8 2.1a2.4 2.4 0 0 1-4.2-1l-.8-3.6A4.5 4.5 0 0 1 7 8z" /><path d="M7.5 11v3M6 12.5h3" /><circle cx="16" cy="11.6" r=".7" fill="currentColor" /><circle cx="17.6" cy="13.4" r=".7" fill="currentColor" /></Svg>;
 export const SoundIcon = (p: P) => <Svg {...p}><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /></Svg>;
 export const MuteIcon = (p: P) => <Svg {...p}><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="m16 9.5 5 5M21 9.5l-5 5" /></Svg>;
-export const ResetIcon = (p: P) => <Svg {...p}><path d="M4 12a8 8 0 1 0 2.4-5.7" /><path d="M4 4v4.5h4.5" /></Svg>;
-export const BoltIcon = (p: P) => <Svg {...p}><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z" /></Svg>;
+export const NavigateIcon = (p: P) => <Svg {...p}><path d="M12 2.8 19.6 20.6 12 16.6 4.4 20.6z" fill="currentColor" fillOpacity=".18" /></Svg>;
+export const RouteIcon = (p: P) => <Svg {...p}><circle cx="6" cy="18.5" r="2.2" /><circle cx="18" cy="5.5" r="2.2" /><path d="M8.2 18.5h7.3a3.2 3.2 0 0 0 0-6.4h-7a3.2 3.2 0 0 1 0-6.4h7.3" /></Svg>;
+export const ListIcon = (p: P) => <Svg {...p}><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r=".8" fill="currentColor" /><circle cx="4.5" cy="12" r=".8" fill="currentColor" /><circle cx="4.5" cy="18" r=".8" fill="currentColor" /></Svg>;
