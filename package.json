@@ -2,11 +2,12 @@
   "name": "cambodia-3d-map",
   "version": "0.1.0",
   "private": true,
-  "description": "Interactive 3D map of Cambodia: terrain and 3D buildings in the browser.",
+  "description": "Interactive 3D map of Cambodia with turn-by-turn 3D navigation in the browser.",
   "scripts": {
     "postinstall": "node scripts/copy-maplibre-worker.mjs",
     "predev": "node scripts/copy-maplibre-worker.mjs",
     "dev": "next dev",
+    "dev:phone": "next dev --experimental-https -H 0.0.0.0",
     "prebuild": "node scripts/copy-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start",

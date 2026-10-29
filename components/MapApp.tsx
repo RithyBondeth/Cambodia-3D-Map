@@ -10,26 +10,22 @@ import type { LngLat } from '@/lib/geo';
 import { loadStyle } from '@/lib/mapStyle';
 import {
   BUILDINGS_LAYER, POI_LAYERS, ROUTE_ALT_LAYER, applyTerrain, decorate, setBuildingsVisible,
-  setRoutes, setSelectedBuilding, setTraveled, type MapState,
+  setRoutes, setSelectedBuilding, type MapState,
 } from '@/lib/mapLayers';
 import { LANDMARK_INFO } from '@/lib/landmarks';
 import { fetchRoutes, type Route } from '@/lib/routing';
 import { prettyCategory, type SearchResult } from '@/lib/search';
-import { DriveSimulation, type DriveProgress } from '@/lib/drive';
+import { unlockSpeech } from '@/lib/nav/voice';
 import SearchBox from './SearchBox';
 import ExplorePanel from './ExplorePanel';
 import PlaceCard, { type PlaceInfo } from './PlaceCard';
 import DirectionsPanel, { type Endpoint } from './DirectionsPanel';
-import DriveHud from './DriveHud';
 import ControlDock from './ControlDock';
 import { DirectionsIcon } from './icons';
 
-// Three.js and the game code load only when someone starts driving.
-const GameMode = dynamic(() => import('./GameMode'), { ssr: false });
-
-// Spawn point for free drive when the map is zoomed out: Norodom Boulevard,
-// heading north from Independence Monument.
-const DRIVE_START = { center: [104.92836, 11.5586] as LngLat, bearing: 0 };
+// Navigation (and Three.js, for the 3D car) loads only once directions are open.
+const loadNavigation = () => import('./Navigation');
+const Navigation = dynamic(loadNavigation, { ssr: false });
 
 // Served from public/ by scripts/copy-maplibre-worker.mjs; ?v busts the cache on upgrades.
 maplibregl.setWorkerUrl(`/maplibre-gl-worker.mjs?v=${maplibregl.getVersion()}`);
@@ -37,6 +33,15 @@ maplibregl.setWorkerUrl(`/maplibre-gl-worker.mjs?v=${maplibregl.getVersion()}`);
 type View = 'explore' | 'place' | 'directions';
 
 const isPhone = () => window.matchMedia('(max-width: 760px)').matches;
+
+// Frame a route beside the directions panel (desktop) or above the bottom sheet (phone).
+function fitRoute(map: maplibregl.Map, route: Route, duration: number) {
+  const bounds = route.coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(route.coords[0], route.coords[0]));
+  map.fitBounds(bounds, {
+    padding: isPhone() ? { top: 60, bottom: window.innerHeight * 0.5, left: 40, right: 40 } : { top: 80, bottom: 80, left: 460, right: 100 },
+    pitch: 45, bearing: 0, duration, maxZoom: 16.5,
+  });
+}
 
 function markerEl(className: string) {
   const el = document.createElement('div');
@@ -50,7 +55,6 @@ export default function MapApp() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const geolocateRef = useRef<maplibregl.GeolocateControl | null>(null);
   const markers = useRef<Record<string, maplibregl.Marker | undefined>>({});
-  const driveRef = useRef<DriveSimulation | null>(null);
   const orbitRef = useRef(0);
   const myLocation = useRef<Endpoint | null>(null);
 
@@ -73,16 +77,15 @@ export default function MapApp() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
 
-  const [drive, setDrive] = useState<DriveProgress | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(10);
-  const [game, setGame] = useState(false);
+  const [nav, setNav] = useState<{ preview: boolean } | null>(null);
 
   // Map event handlers read the latest state through refs.
   const stateRef = useRef<MapState>({ theme, exaggeration, terrain, buildings });
   stateRef.current = { theme, exaggeration, terrain, buildings };
   const viewRef = useRef(view);
   viewRef.current = view;
+  const navRef = useRef(nav);
+  navRef.current = nav;
 
   const near = useCallback((): LngLat => {
     const c = mapRef.current?.getCenter();
@@ -152,17 +155,19 @@ export default function MapApp() {
       map.addControl(geolocate, 'bottom-right');
       map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
       geolocate.on('geolocate', (e) => {
-        myLocation.current = { label: 'Your location', center: [e.coords.longitude, e.coords.latitude] };
+        myLocation.current = { label: 'Your location', center: [e.coords.longitude, e.coords.latitude], mine: true };
       });
 
       const m = map;
       m.on('style.load', () => decorate(m, stateRef.current));
       m.on('error', (e) => console.warn('Map error:', e.error?.message));
-      m.on('rotate', () => setBearing(m.getBearing()));
+      // The navigation camera turns every frame; the compass is hidden then anyway.
+      m.on('rotate', () => !navRef.current && setBearing(m.getBearing()));
       m.on('pitchend', () => setIs3D(m.getPitch() > 10));
       for (const ev of ['dragstart', 'wheel', 'touchstart'] as const) m.on(ev, stopOrbit);
 
       m.on('click', (e) => {
+        if (navRef.current) return;
         const layers = [ROUTE_ALT_LAYER, ...POI_LAYERS, 'kh-landmarks', BUILDINGS_LAYER].filter((id) => m.getLayer(id));
         const f = m.queryRenderedFeatures(e.point, { layers })[0];
         if (!f) {
@@ -214,6 +219,7 @@ export default function MapApp() {
 
       // Right-click (desktop) or long-press (touch) drops a pin.
       m.on('contextmenu', (e) => {
+        if (navRef.current) return;
         showPlace({ kind: 'pin', title: 'Dropped pin', center: [e.lngLat.lng, e.lngLat.lat] });
       });
 
@@ -225,7 +231,6 @@ export default function MapApp() {
 
     return () => {
       cancelled = true;
-      driveRef.current?.stop();
       map?.remove();
       mapRef.current = null;
       markers.current = {};
@@ -264,16 +269,10 @@ export default function MapApp() {
 
     const ctrl = new AbortController();
     setRouteLoading(true);
-    fetchRoutes(from.center, to.center, ctrl.signal)
+    fetchRoutes(from.center, to.center, { signal: ctrl.signal })
       .then((r) => {
         setRoutesState(r);
-        const map = mapRef.current;
-        if (!map || !r[0]) return;
-        const bounds = r[0].coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(r[0].coords[0], r[0].coords[0]));
-        map.fitBounds(bounds, {
-          padding: isPhone() ? { top: 60, bottom: window.innerHeight * 0.5, left: 40, right: 40 } : { top: 80, bottom: 80, left: 460, right: 100 },
-          pitch: 45, bearing: 0, duration: 1600, maxZoom: 16.5,
-        });
+        if (mapRef.current && r[0]) fitRoute(mapRef.current, r[0], 1600);
       })
       .catch((e: Error) => { if (!ctrl.signal.aborted) setRouteError(e.message); })
       .finally(() => { if (!ctrl.signal.aborted) setRouteLoading(false); });
@@ -284,12 +283,21 @@ export default function MapApp() {
     if (mapRef.current) setRoutes(mapRef.current, routes.map((r) => r.coords), selected);
   }, [routes, selected]);
 
+  // Fetch the navigation code while the user is still picking a route.
+  useEffect(() => {
+    if (view === 'directions') void loadNavigation();
+  }, [view]);
+
   function openDirections() {
     stopOrbit();
     if (mapRef.current) setSelectedBuilding(mapRef.current, null);
     setMarker('place', '', null);
     if (place) setTo({ label: place.title === 'Building' || place.kind === 'pin' ? `${place.title} (${place.center[1].toFixed(4)}, ${place.center[0].toFixed(4)})` : place.title, center: place.center });
-    if (!from && myLocation.current) setFrom(myLocation.current);
+    // Navigation starts from where you are, so fill that in straight away.
+    if (!from) {
+      if (myLocation.current) setFrom(myLocation.current);
+      else useMyLocation('from', true);
+    }
     setPlace(null);
     setView('directions');
     setSheetOpen(true);
@@ -301,108 +309,54 @@ export default function MapApp() {
     setTo(null);
   }
 
-  function useMyLocation(field: 'from' | 'to') {
+  // `auto`: filled in for the user, so stay quiet on failure and never overwrite their choice.
+  function useMyLocation(field: 'from' | 'to', auto = false) {
     if (!navigator.geolocation) {
-      setRouteError('Location is not available in this browser.');
+      if (!auto) setRouteError('Location is not available in this browser.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const me: Endpoint = { label: 'Your location', center: [pos.coords.longitude, pos.coords.latitude] };
+        const me: Endpoint = { label: 'Your location', center: [pos.coords.longitude, pos.coords.latitude], mine: true };
         myLocation.current = me;
-        (field === 'from' ? setFrom : setTo)(me);
+        if (field === 'to') setTo(me);
+        else setFrom((current) => (auto && current ? current : me));
       },
-      (err) => setRouteError(`Couldn't get your location: ${err.message}`),
-      { enableHighAccuracy: true, timeout: 10000 },
+      (err) => !auto && setRouteError(`Couldn't get your location: ${err.message}`),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   }
 
-  // --- 3D drive ---
+  // --- Turn-by-turn navigation ---
 
-  function startDrive() {
-    const map = mapRef.current;
+  function startNavigation(preview: boolean) {
     const route = routes[selected];
-    if (!map || !route) return;
+    if (!mapRef.current || !route || !to) return;
+    unlockSpeech(); // must happen inside the tap, for iOS
     stopOrbit();
-    // Upright (viewport-pitched) so it stays readable at a steep camera angle.
-    const car = new maplibregl.Marker({ element: markerEl('marker-car'), rotationAlignment: 'map', pitchAlignment: 'viewport' })
-      .setLngLat(route.coords[0]).addTo(map);
-    markers.current.car = car;
-    map.setPadding({ top: window.innerHeight * 0.38, bottom: 0, left: 0, right: 0 });
-
-    let lastUi = 0;
-    const sim = new DriveSimulation(map, route, (pos, heading, progress) => {
-      car.setLngLat(pos).setRotation(heading);
-      const now = performance.now();
-      // Throttle React + GeoJSON updates; the camera itself moves every frame.
-      if (now - lastUi > 120 || progress.done) {
-        lastUi = now;
-        setDrive(progress);
-        setTraveled(map, route.path.sliceTo(progress.travelled));
-        if (progress.done) setPlaying(false);
-      }
-    });
-    sim.speed = speed;
-    driveRef.current = sim;
-    setDrive({ travelled: 0, remaining: route.path.length, remainingTime: route.duration, stepIndex: 0, toNextStep: 0, done: false });
-    setPlaying(true);
-    sim.play();
+    // Drive the chosen route only; alternatives would just be clutter.
+    setRoutesState([route]);
+    setSelected(0);
+    setNav({ preview });
   }
 
-  function toggleDrive() {
-    const sim = driveRef.current;
-    if (!sim) return;
-    if (sim.isPlaying) sim.pause();
-    else sim.play();
-    setPlaying(sim.isPlaying);
-  }
+  const onRerouted = useCallback((route: Route) => {
+    setRoutesState([route]);
+    setSelected(0);
+  }, []);
 
-  function changeSpeed(s: number) {
-    setSpeed(s);
-    if (driveRef.current) driveRef.current.speed = s;
-  }
-
-  function exitDrive() {
-    const map = mapRef.current;
-    driveRef.current?.stop();
-    driveRef.current = null;
-    markers.current.car?.remove();
-    markers.current.car = undefined;
-    setDrive(null);
-    setPlaying(false);
-    if (!map) return;
-    setTraveled(map, []);
-    map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+  // After navigation ends (and has cleaned up its camera), show the whole route again.
+  const wasNavigating = useRef(false);
+  useEffect(() => {
+    if (nav) {
+      wasNavigating.current = true;
+      return;
+    }
+    if (!wasNavigating.current) return;
+    wasNavigating.current = false;
     const route = routes[selected];
-    if (route) {
-      const bounds = route.coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(route.coords[0], route.coords[0]));
-      map.fitBounds(bounds, { padding: isPhone() ? { top: 60, bottom: window.innerHeight * 0.5, left: 40, right: 40 } : { top: 80, bottom: 80, left: 460, right: 100 }, pitch: 45, bearing: 0, duration: 1400 });
-    }
-  }
-
-  // --- Free drive (game) ---
-
-  function enterGame() {
-    const map = mapRef.current;
-    if (!map) return;
-    stopOrbit();
-    setSelectedBuilding(map, null);
-    setMarker('place', '', null);
-    setPlace(null);
-    if (view === 'place') setView('explore');
-    // Driving needs building tiles around the car, so start in a city at street level.
-    if (map.getZoom() < 15.5) {
-      map.flyTo({ ...DRIVE_START, zoom: 18.4, pitch: 68, duration: 2600, essential: true });
-      map.once('moveend', () => setGame(true));
-    } else {
-      setGame(true);
-    }
-  }
-
-  function exitGame() {
-    setGame(false);
-    mapRef.current?.easeTo({ pitch: 60, zoom: 16.5, duration: 900 });
-  }
+    if (mapRef.current && route) fitRoute(mapRef.current, route, 1400);
+  }, [nav]);
 
   // --- Camera moves ---
 
@@ -438,14 +392,14 @@ export default function MapApp() {
   }
 
   const route = routes[selected];
-  const mode = game ? 'game' : drive ? 'drive' : view;
+  const mode = nav ? 'navigate' : view;
 
   return (
     <div className="app" data-mode={mode}>
       <div id="map" ref={containerRef} />
       <div className="halo" aria-hidden="true" />
 
-      {!drive && !game && (
+      {!nav && (
         <>
           {view !== 'directions' && (
             <header className="topbar">
@@ -471,7 +425,7 @@ export default function MapApp() {
               <span />
             </button>
             <div className="sheet-body">
-              {view === 'explore' && <ExplorePanel onGo={goTo} onDrive={enterGame} />}
+              {view === 'explore' && <ExplorePanel onGo={goTo} onNavigate={openDirections} />}
               {view === 'place' && place && (
                 <PlaceCard place={place} onClose={closePlace} onDirections={openDirections} onOrbit={() => orbit(place.center)} />
               )}
@@ -483,7 +437,7 @@ export default function MapApp() {
                   onSwap={() => { setFrom(to); setTo(from); }}
                   onUseLocation={useMyLocation}
                   onSelectRoute={setSelected}
-                  onStartDrive={startDrive}
+                  onStart={startNavigation}
                   onClose={closeDirections}
                 />
               )}
@@ -504,7 +458,6 @@ export default function MapApp() {
               setIs3D(next > 0);
             }}
             onLocate={() => geolocateRef.current?.trigger()}
-            onPlay={enterGame}
             onBuildings={setBuildings}
             onTerrain={setTerrain}
             onExaggeration={setExaggeration}
@@ -512,14 +465,12 @@ export default function MapApp() {
         </>
       )}
 
-      {drive && route && (
-        <DriveHud
-          route={route} progress={drive} playing={playing} speed={speed}
-          onToggle={toggleDrive} onSpeed={changeSpeed} onExit={exitDrive}
+      {nav && mapRef.current && route && to && (
+        <Navigation
+          map={mapRef.current} route={route} destination={to} simulate={nav.preview}
+          onRoute={onRerouted} onExit={() => setNav(null)}
         />
       )}
-
-      {game && mapRef.current && <GameMode map={mapRef.current} onExit={exitGame} />}
 
       {mapError && <div className="toast glass" role="alert">{mapError}</div>}
     </div>
