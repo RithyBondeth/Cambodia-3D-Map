@@ -24,12 +24,18 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
   - You drive a low-poly sports car, built in code with Three.js, rather than a tuk-tuk or a fly-around drone.
   - Physics is arcade-style. Buildings are solid, using OSM footprints from the loaded vector tiles.
   - Road widths were raised to real metres at close zoom so streets aren't narrower than the car.
+- **Navigation instead of a game (29 Oct 2026).** The aim is a map people use to drive from where they are to where they're going, with a 3D view of the real route. Free drive was removed (it's in git history: PR #5).
+  - Live GPS turn-by-turn in the browser: route snapping, rerouting, voice prompts, wake lock. The 3D car from free drive was reused as the position marker, restyled and kept at a steady size on screen.
+  - The old playback preview now runs through the same engine with a simulated GPS. What you preview is what you'll get, and it can be tested on a desktop.
+  - Khmer OSM street names carry Phnom Penh street numbers, which give "St 274" for the screen and "Street 274" for an English voice. A Khmer voice isn't offered: few phones have one.
 - **Terrain needs exaggeration.** Highest peak (Phnom Aural) is ~1,800 m and the central plain is near sea level, so a 5–20× option is useful for country views.
 
 ## Known limits
 
 - Many Cambodian buildings in OSM have no height; they show a default estimate. Key towers should be checked and corrected.
 - No lane-level road data for Cambodia, so Google-style lane detail is out of reach without surveying.
+- No live traffic, speed limits or speed cameras: OSRM's demo server has no traffic, and OSM in Cambodia rarely has `maxspeed`.
+- A browser tab only gets GPS while it's open and on screen (no background navigation), and only over https.
 - Khmer labels render, but MapLibre doesn't do complex text shaping, so stacked consonants are likely drawn incorrectly. Needs checking by a Khmer reader.
 
 ## Roadmap
@@ -37,10 +43,13 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
 - [ ] Verify / fix heights of major Phnom Penh towers
 - [x] Glowing route line, animated car (3D drive)
 - [ ] 3D trees
-- [ ] Free drive: missions, checkpoint races, collectibles
-- [ ] Free drive: traffic / pedestrians, day-night headlights
-- [ ] Live GPS turn-by-turn navigation (the 3D drive is a playback preview)
-- [ ] Move routing off the OSRM demo server before launch
+- [x] Live GPS turn-by-turn navigation with voice and rerouting
+- [ ] Move routing off the OSRM demo server before launch (self-hosted OSRM or Valhalla with a Cambodia extract)
+- [ ] Night mode that switches on automatically while driving after dark
+- [ ] Lane hints and speed limits where OSM has them
+- [ ] Motorbike / tuk-tuk routing profiles (most Phnom Penh traffic)
+- [ ] Saved places (home, work) and recent destinations
+- [ ] Installable PWA; native app if background navigation is needed
 - [ ] Province boundaries and names (EN + Khmer)
 - [ ] Khmer labels (self-hosted glyphs with Noto Sans Khmer)
 - [x] Landmark models: Independence Monument, Angkor Wat

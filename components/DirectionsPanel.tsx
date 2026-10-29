@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import SearchBox, { type Extra } from './SearchBox';
-import { CarIcon, ChevronIcon, CloseIcon, LocateIcon, ManeuverIcon, SwapIcon } from './icons';
+import { CarIcon, ChevronIcon, CloseIcon, LocateIcon, ManeuverIcon, NavigateIcon, PlayIcon, SwapIcon } from './icons';
 import type { Route } from '@/lib/routing';
 import type { LngLat } from '@/lib/geo';
 import type { SearchResult } from '@/lib/search';
 import { formatArrival, formatDistance, formatDuration } from '@/lib/format';
 
-export type Endpoint = { label: string; center: LngLat };
+// `mine`: the device's own position, which live navigation needs as its start.
+export type Endpoint = { label: string; center: LngLat; mine?: boolean };
 
 type Props = {
   from: Endpoint | null;
@@ -23,7 +24,7 @@ type Props = {
   onSwap: () => void;
   onUseLocation: (field: 'from' | 'to') => void;
   onSelectRoute: (i: number) => void;
-  onStartDrive: () => void;
+  onStart: (preview: boolean) => void;
   onClose: () => void;
 };
 
@@ -100,8 +101,16 @@ export default function DirectionsPanel(props: Props) {
             <>
               <p className="arrival">Arrive around <b>{formatArrival(route.duration)}</b></p>
               <div className="actions">
-                <button className="btn primary wide" onClick={props.onStartDrive}><CarIcon /> Start 3D drive</button>
+                {from?.mine && (
+                  <button className="btn primary wide" onClick={() => props.onStart(false)}><NavigateIcon /> Start</button>
+                )}
+                <button className={`btn ${from?.mine ? '' : 'primary wide'}`} onClick={() => props.onStart(true)}>
+                  <PlayIcon /> Preview drive
+                </button>
               </div>
+              {from && !from.mine && (
+                <p className="hint">Live turn-by-turn navigation starts from your location. Set the start to “Your location” to drive it.</p>
+              )}
 
               <button className="steps-toggle" onClick={() => setShowSteps((s) => !s)} aria-expanded={showSteps}>
                 {route.steps.length} steps <ChevronIcon className={showSteps ? 'flip' : ''} width={16} height={16} />
@@ -122,7 +131,7 @@ export default function DirectionsPanel(props: Props) {
         </>
       )}
 
-      <p className="fineprint">Routes by OSRM on OpenStreetMap data. The 3D drive is a preview, not live navigation.</p>
+      <p className="fineprint">Routes by OSRM on OpenStreetMap data, without live traffic. Always follow road signs and local conditions.</p>
     </div>
   );
 }
