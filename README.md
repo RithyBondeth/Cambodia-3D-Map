@@ -18,8 +18,16 @@ Map data streams from free, keyless tile servers, so you need an internet connec
 
 ## Features
 
-- **Holographic UI**: glass panels, iridescent accents, a pearl **Day** theme and a **Dusk** theme. On phones the panel becomes a bottom sheet
-- **3D buildings** from real OpenStreetMap footprints, with a height gradient and bright roof edges. Tap one for its height and floor count
+- **Holographic UI**: glass panels and iridescent accents. On phones the panel becomes a bottom sheet
+- **A full-colour street map**, styled like modern map apps:
+  - Green parks, woods and rice fields, blue rivers, and tinted shopping, industrial and campus areas.
+  - A road hierarchy: orange highways, yellow main roads, white streets, and dashed centre lines up close.
+  - A **Day** look and a **Dusk** (night) look.
+- **Satellite view**: aerial imagery under the 3D city, with roads and labels on top (dock button, or Layers → Satellite)
+- **3D buildings** from real OpenStreetMap footprints, each with its own look:
+  - Painted shophouse facades with rows of windows (lit at night) and glass curtain walls on towers.
+  - Terracotta, concrete or metal roofs.
+  - Tap a building for its height and floor count.
 - **Hand-modelled landmarks**: Independence Monument (stepped lotus stupa) and Angkor Wat (galleries plus the five-tower quincunx)
 - **Terrain** for all of Cambodia (SRTM-based), with a height slider
 - **Search** for places, streets and businesses across Cambodia
@@ -40,6 +48,7 @@ Map data streams from free, keyless tile servers, so you need an internet connec
 |---|---|---|
 | Map + buildings | [OpenFreeMap](https://openfreemap.org) (OpenStreetMap, OpenMapTiles schema) | Free, no API key. Buildings without a height get a default estimate |
 | Elevation | AWS Terrain Tiles (Terrarium) | ~30 m in Cambodia |
+| Satellite imagery | [Esri World Imagery](https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a4) | Keyless, attribution shown. Production use needs an ArcGIS developer account (free tier) or another imagery provider |
 | Search | [Photon](https://photon.komoot.io) (OpenStreetMap) | Free public API, fair use |
 | Routing | [OSRM](https://project-osrm.org) public demo server | Free, rate-limited, **not for production**. Set `NEXT_PUBLIC_OSRM_URL` to a hosted/self-run OSRM before launch |
 | Map engine | [MapLibre GL JS](https://maplibre.org) v6 (pinned in package.json) | Same styles work later in MapLibre Android/iOS SDKs |
@@ -59,9 +68,11 @@ components/Navigation.tsx navigation screen: banner, turn list, ETA bar, speed, 
 components/SearchBox.tsx  search field with results (also used for From/To)
 components/ExplorePanel.tsx, PlaceCard.tsx, DirectionsPanel.tsx, ControlDock.tsx
 components/icons.tsx      inline SVG icons, turn arrows
-lib/theme.ts              Day / Dusk palettes
-lib/mapStyle.ts           loads the OpenFreeMap style and recolours it
+lib/theme.ts              Day / Dusk map palettes (land use, roads, facades, roofs)
+lib/mapStyle.ts           loads the OpenFreeMap style, recolours it, adds land use, centre lines, satellite
 lib/mapLayers.ts          terrain, buildings, landmarks, route + turn-arrow layers, light, sky
+lib/buildingTextures.ts   facade and glass-tower textures, drawn on a canvas
+lib/buildingParts.ts      splits merged tile buildings into single buildings (see below)
 lib/landmarks.ts          hand-modelled landmark geometry
 lib/routing.ts            OSRM client, turn instructions (screen + voice), road names
 lib/search.ts             Photon client
@@ -78,5 +89,7 @@ docs/PROJECT_NOTES.md     decisions and roadmap
 ```
 
 **MapLibre worker:** v6 loads its web worker from a separate file, which the Next.js bundler doesn't ship. An npm hook copies it to `public/maplibre-gl-worker.mjs` (gitignored) on install, dev and build, and `MapApp.tsx` points MapLibre at it with `setWorkerUrl()`.
+
+**Per-building looks:** OpenFreeMap merges every building of the same height in a tile into one feature, and most Cambodian buildings have no height in OSM, so hundreds of buildings arrive as one shape that style rules can only colour as a whole. `lib/buildingParts.ts` fetches the same z14 tiles (served from the browser cache), splits them into single buildings, clips each to its tile, and gives each a stable random value that picks its facade and roof. Zoomed out, or until the tile under the camera is split, the plain tile buildings show instead.
 
 **CSS note:** write `backdrop-filter` without the `-webkit-` copy. Next's CSS optimizer adds the Safari prefix itself; writing both makes it keep only the prefixed one, which breaks the blur in Chrome.

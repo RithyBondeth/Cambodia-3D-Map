@@ -28,6 +28,11 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
   - Live GPS turn-by-turn in the browser: route snapping, rerouting, voice prompts, wake lock. The 3D car from free drive was reused as the position marker, restyled and kept at a steady size on screen.
   - The old playback preview now runs through the same engine with a simulated GPS. What you preview is what you'll get, and it can be tested on a desktop.
   - Khmer OSM street names carry Phnom Penh street numbers, which give "St 274" for the screen and "Street 274" for an English voice. A Khmer voice isn't offered: few phones have one.
+- **Colour and detail (29 Oct 2026).** Buildings and roads looked like plain white blocks. The map now uses a full-colour palette modelled on mainstream street maps:
+  - Buildings get facade textures (windows, floor lines, glass towers, lit windows at night) and varied roofs.
+  - A satellite view uses Esri World Imagery, which is keyless but needs an ArcGIS account for production.
+  - Per-building variety needed splitting OpenFreeMap's merged building features ourselves (`lib/buildingParts.ts`).
+  - Textures are a fixed size on screen, so windows are sized right around zoom 18 to 19 (street level) and look larger when zoomed out.
 - **Terrain needs exaggeration.** Highest peak (Phnom Aural) is ~1,800 m and the central plain is near sea level, so a 5–20× option is useful for country views.
 
 ## Known limits
@@ -42,7 +47,8 @@ A 3D map of Cambodia: real terrain countrywide, 3D buildings in cities, eventual
 
 - [ ] Verify / fix heights of major Phnom Penh towers
 - [x] Glowing route line, animated car (3D drive)
-- [ ] 3D trees
+- [ ] 3D trees (and tree canopies from OSM `natural=tree_row` / wood)
+- [ ] Imagery provider for production (ArcGIS developer account or MapTiler)
 - [x] Live GPS turn-by-turn navigation with voice and rerouting
 - [ ] Move routing off the OSRM demo server before launch (self-hosted OSRM or Valhalla with a Cambodia extract)
 - [ ] Night mode that switches on automatically while driving after dark
