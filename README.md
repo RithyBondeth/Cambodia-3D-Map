@@ -2,6 +2,24 @@
 
 An interactive, mobile-friendly 3D web map of Cambodia with a holographic look: real terrain for the whole country, 3D buildings, hand-modelled landmarks, place search, and turn-by-turn 3D navigation from your location.
 
+<!-- product-images:start -->
+
+## Product preview
+
+<p align="center">
+  <img src="docs/product-images/hero.png" alt="Cambodia 3D Map — Real terrain, Khmer landmarks, and a map you can explore." width="100%">
+</p>
+
+<table>
+<tr>
+  <td width="33%"><img src="docs/product-images/feature-01.png" alt="A country in 3D. — Explore terrain and buildings drawn from real map data." width="100%"></td>
+  <td width="33%"><img src="docs/product-images/feature-02.png" alt="Find a place. Follow the route. — Search, compare driving routes, and begin turn-by-turn navigation." width="100%"></td>
+  <td width="33%"><img src="docs/product-images/feature-03.png" alt="Landmarks with identity. — Hand-modeled Khmer landmarks sit alongside real building footprints." width="100%"></td>
+</tr>
+</table>
+
+<!-- product-images:end -->
+
 ## Run it
 
 ```bash
@@ -31,9 +49,9 @@ Map data streams from free, keyless tile servers, so you need an internet connec
 - **Hand-modelled landmarks**: Independence Monument (stepped lotus stupa) and Angkor Wat (galleries plus the five-tower quincunx)
 - **Terrain** for all of Cambodia (SRTM-based), with a height slider
 - **Search** for places, streets and businesses across Cambodia
-- **Place details**: tap POIs, buildings or landmarks. Right-click or long-press to drop a pin. *Orbit in 3D* circles the camera around a place
+- **Place details**: tap POIs, buildings or landmarks. Right-click or long-press to drop a pin. _Orbit in 3D_ circles the camera around a place
 - **Driving directions** with alternative routes and step lists. The start fills in with your location
-- **Turn-by-turn 3D navigation** (*Start*): follows your phone's GPS along the route.
+- **Turn-by-turn 3D navigation** (_Start_): follows your phone's GPS along the route.
   - A heading-up chase camera behind a 3D car, which pulls back at speed and leans in before turns. A white turn arrow is painted on the road at the next manoeuvre.
   - Banner with the next turn, the distance to it, the street (Latin + Khmer) and a "Then" hint for back-to-back turns. Tap it for the upcoming turns.
   - **Voice guidance** (browser speech): "In 300 meters, turn right onto Street 107", "Turn left onto Street 214, then turn right onto Street 105", "You have arrived. Your destination is on the left."
@@ -44,17 +62,17 @@ Map data streams from free, keyless tile servers, so you need an internet connec
 
 ## Data sources
 
-| What | Source | Notes |
-|---|---|---|
-| Map + buildings | [OpenFreeMap](https://openfreemap.org) (OpenStreetMap, OpenMapTiles schema) | Free, no API key. Buildings without a height get a default estimate |
-| Elevation | AWS Terrain Tiles (Terrarium) | ~30 m in Cambodia |
+| What              | Source                                                                                          | Notes                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Map + buildings   | [OpenFreeMap](https://openfreemap.org) (OpenStreetMap, OpenMapTiles schema)                     | Free, no API key. Buildings without a height get a default estimate                                                  |
+| Elevation         | AWS Terrain Tiles (Terrarium)                                                                   | ~30 m in Cambodia                                                                                                    |
 | Satellite imagery | [Esri World Imagery](https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a4) | Keyless, attribution shown. Production use needs an ArcGIS developer account (free tier) or another imagery provider |
-| Search | [Photon](https://photon.komoot.io) (OpenStreetMap) | Free public API, fair use |
-| Routing | [OSRM](https://project-osrm.org) public demo server | Free, rate-limited, **not for production**. Set `NEXT_PUBLIC_OSRM_URL` to a hosted/self-run OSRM before launch |
-| Map engine | [MapLibre GL JS](https://maplibre.org) v6 (pinned in package.json) | Same styles work later in MapLibre Android/iOS SDKs |
-| 3D car | [Three.js](https://threejs.org), rendered as a MapLibre custom layer | Loaded only with the navigation code, when directions open |
-| Voice | Browser speech synthesis (Web Speech API) | English voice; uses whatever voices the phone has |
-| App framework | [Next.js](https://nextjs.org) 16 (App Router) + React 19 + TypeScript | The map renders client-side only |
+| Search            | [Photon](https://photon.komoot.io) (OpenStreetMap)                                              | Free public API, fair use                                                                                            |
+| Routing           | [OSRM](https://project-osrm.org) public demo server                                             | Free, rate-limited, **not for production**. Set `NEXT_PUBLIC_OSRM_URL` to a hosted/self-run OSRM before launch       |
+| Map engine        | [MapLibre GL JS](https://maplibre.org) v6 (pinned in package.json)                              | Same styles work later in MapLibre Android/iOS SDKs                                                                  |
+| 3D car            | [Three.js](https://threejs.org), rendered as a MapLibre custom layer                            | Loaded only with the navigation code, when directions open                                                           |
+| Voice             | Browser speech synthesis (Web Speech API)                                                       | English voice; uses whatever voices the phone has                                                                    |
+| App framework     | [Next.js](https://nextjs.org) 16 (App Router) + React 19 + TypeScript                           | The map renders client-side only                                                                                     |
 
 ## Project layout
 
